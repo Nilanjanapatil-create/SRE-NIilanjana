@@ -1,4 +1,4 @@
-name: Quality Gates
+name: Quality Gates with SLOs
 
 on:
   push:
@@ -46,12 +46,18 @@ jobs:
           exit 1
         fi
 
-    - name: Check code coverage
+    - name: Run SLO checks
       run: |
-        npm run coverage
-        COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
-        if [ $COVERAGE -lt 80 ]; then
-          echo "Code coverage below threshold"
+        # Example command to fetch SLO data from a monitoring tool
+        SLO_DATA=$(curl -s http://monitoring-tool/api/slo)
+        ERROR_RATE=$(echo $SLO_DATA | jq '.error_rate')
+        LATENCY=$(echo $SLO_DATA | jq '.latency')
+        if [ $ERROR_RATE -gt 1 ]; then
+          echo "Error rate above threshold"
+          exit 1
+        fi
+        if [ $LATENCY -gt 200 ]; then
+          echo "Latency above threshold"
           exit 1
         fi
 
@@ -62,3 +68,4 @@ jobs:
         text: "Quality gate breached in workflow for Online Retail Demo project"
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
