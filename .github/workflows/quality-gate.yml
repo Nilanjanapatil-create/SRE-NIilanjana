@@ -1,41 +1,64 @@
-   name: Quality Gate
+name: Quality Gates
 
-   on:
-     push:
-       branches:
-         - main
-     pull_request:
-       branches:
-         - main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
-   jobs:
-     quality-check:
-       runs-on: ubuntu-latest
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-       steps:
-       - name: Checkout code
-         uses: actions/checkout@v2
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-       - name: Set up Node.js
-         uses: actions/setup-node@v2
-         with:
-           node-version: '14'
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
 
-       - name: Install dependencies
-         run: npm install
+    - name: Install dependencies
+      run: npm install
 
-       - name: Run tests
-         run: npm test
+    - name: Run lint
+      run: npm run lint
 
-       - name: Check SLOs
-         run: |
-           response_time=$(curl -s -o /dev/null -w "%{time_total}" http://your-app-url)
-           if (( $(echo "$response_time > 0.2" | bc -l) )); then
-             echo "Response time is above 200ms"
-             exit 1
-           fi
-           error_rate=$(curl -s http://your-app-url/metrics | grep error_rate | awk '{print $2}')
-           if (( $(echo "$error_rate > 0.01" | bc -l) )); then
-             echo "Error rate is above 1%"
-             exit 1
-           fi
+    - name: Check linting errors
+      run: |
+        npm run lint
+        if [ $? -ne 0 ]; then
+          echo "Linting errors found"
+          exit 1
+        fi
+
+    - name: Run tests
+      run: npm test
+
+    - name: Check test results
+      run: |
+        npm test
+        if [ $? -ne 0 ]; then
+          echo "Tests failed"
+          exit 1
+        fi
+
+    - name: Check code coverage
+      run: |
+        npm run coverage
+        COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+        if [ $COVERAGE -lt 80 ]; then
+          echo "Code coverage below threshold"
+          exit 1
+        fi
+
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: "Quality gate breached in workflow for Online Retail Demo project"
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
