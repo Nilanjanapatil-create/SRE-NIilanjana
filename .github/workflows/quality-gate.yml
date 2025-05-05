@@ -1,0 +1,41 @@
+   name: Quality Gate
+
+   on:
+     push:
+       branches:
+         - main
+     pull_request:
+       branches:
+         - main
+
+   jobs:
+     quality-check:
+       runs-on: ubuntu-latest
+
+       steps:
+       - name: Checkout code
+         uses: actions/checkout@v2
+
+       - name: Set up Node.js
+         uses: actions/setup-node@v2
+         with:
+           node-version: '14'
+
+       - name: Install dependencies
+         run: npm install
+
+       - name: Run tests
+         run: npm test
+
+       - name: Check SLOs
+         run: |
+           response_time=$(curl -s -o /dev/null -w "%{time_total}" http://your-app-url)
+           if (( $(echo "$response_time > 0.2" | bc -l) )); then
+             echo "Response time is above 200ms"
+             exit 1
+           fi
+           error_rate=$(curl -s http://your-app-url/metrics | grep error_rate | awk '{print $2}')
+           if (( $(echo "$error_rate > 0.01" | bc -l) )); then
+             echo "Error rate is above 1%"
+             exit 1
+           fi
